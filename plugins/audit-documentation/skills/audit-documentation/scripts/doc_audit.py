@@ -50,6 +50,7 @@ HISTORIC_HINTS = re.compile(
 )
 META_DOC = re.compile(r"(^|/)SKILL\.md$|(^|/)skills/[^/]+/references/", re.I)  # skills génériques : parlent d'autres projets
 HISTORIC_MARKERS = re.compile(r"historique|historical|deprecated|obsol[eè]te|archived|superseded", re.I)
+NO_GIT = False  # --no-git : saute les contrôles qui lisent l'historique (lents sur un dossier réseau / monté)
 SEVERITY_ORDER = {"bloquant": 0, "important": 1, "mineur": 2}
 WEIGHTS = {"bloquant": 15, "important": 5, "mineur": 1}
 CAPS = {"bloquant": 60, "important": 40, "mineur": 10}
@@ -103,7 +104,7 @@ class Repo:
             parts = p.split("/")
             for i in range(len(parts)):
                 self.suffixes.add("/".join(parts[i:]))
-        self.is_git = (root / ".git").exists()
+        self.is_git = (root / ".git").exists() and not NO_GIT
         self.top_level = {p.split("/")[0] for p in self.all_paths}
         self.dir_names = {d.split("/")[-1] for d in self.dirs}
 
@@ -111,8 +112,8 @@ class Repo:
         """([(date, [fichiers])], {fichier: date du dernier commit}) — un seul `git log` par dépôt, mis en cache."""
         if getattr(self, "_history", None) is None:
             commits, last = [], {}
-            out = run(["git", "log", "--no-merges", "--format=@@%cs", "--name-only", "-n", "3000"], self.root, timeout=180) \
-                if self.is_git else ""
+            out = run(["git", "log", "--no-merges", "--since=13.months.ago", "--format=@@%cs", "--name-only",
+                       "-n", "1500"], self.root, timeout=150) if self.is_git else ""
             cur = None
             for line in out.splitlines():
                 if line.startswith("@@"):
@@ -1328,9 +1329,12 @@ def main():
                     help="dépôt servant de hub de documentation (sinon détecté : dépôt quasi sans code)")
     ap.add_argument("--no-auto", action="store_true", help="ne pas détecter les dossiers frères")
     ap.add_argument("--single", action="store_true", help="ignorer tout dépôt lié (audit d'un seul dépôt)")
+    ap.add_argument("--no-git", action="store_true", help="ne pas lire git (fraîcheur, secrets) : plus rapide")
     ap.add_argument("--ecosystem", action="store_true",
                     help="auditer le dépôt et tous ses dépôts liés, avec un score par dépôt")
     args = ap.parse_args()
+    global NO_GIT
+    NO_GIT = args.no_git
     root = Path(args.root).resolve()
     if not root.is_dir():
         sys.exit(f"Dossier introuvable : {root}")
