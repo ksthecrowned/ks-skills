@@ -107,6 +107,23 @@ class Repo:
         self.top_level = {p.split("/")[0] for p in self.all_paths}
         self.dir_names = {d.split("/")[-1] for d in self.dirs}
 
+    def history(self):
+        """([(date, [fichiers])], {fichier: date du dernier commit}) — un seul `git log` par dépôt, mis en cache."""
+        if getattr(self, "_history", None) is None:
+            commits, last = [], {}
+            out = run(["git", "log", "--no-merges", "--format=@@%cs", "--name-only", "-n", "3000"], self.root, timeout=180) \
+                if self.is_git else ""
+            cur = None
+            for line in out.splitlines():
+                if line.startswith("@@"):
+                    cur = (line[2:].strip(), [])
+                    commits.append(cur)
+                elif line.strip() and cur:
+                    cur[1].append(line.strip())
+                    last.setdefault(line.strip(), cur[0])
+            self._history = (commits, last)
+        return self._history
+
     def exists_loose(self, token: str, doc_dir: str) -> bool:
         t = token.strip()
         while t.startswith("./"):
@@ -907,7 +924,7 @@ class Audit:
         for d in self.docs:
             if self.doc_kind[d] != "vivante":
                 continue
-            last = run(["git", "log", "-1", "--format=%cs", "--", d], self.root).strip()
+            last = self._last_change(d)
             if not last:
                 continue
             try:
@@ -927,20 +944,14 @@ class Audit:
     def _commits_since(self, date, code_only=False):
         if not self.repo.is_git:
             return None
-        out = run(["git", "log", f"--since={date}", "--format=%H", "--name-only"], self.root, timeout=120)
-        if not out:
-            return 0
-        n, cur, touched = 0, None, False
-        for line in out.splitlines() + [""]:
-            if re.fullmatch(r"[0-9a-f]{40}", line):
-                if cur and touched:
-                    n += 1
-                cur, touched = line, False
-            elif line and (not code_only or Path(line).suffix in CODE_EXT):
-                touched = True
-        if cur and touched:
-            n += 1
-        return n
+        commits, _ = self.repo.history()
+        return sum(1 for dte, files in commits if dte >= date and
+                   (any(Path(f).suffix in CODE_EXT for f in files) if code_only else files))
+
+    def _last_change(self, path_rel):
+        if not self.repo.is_git:
+            return ""
+        return self.repo.history()[1].get(path_rel, "")
 
     # ---- duplication --------------------------------------------------------
     def check_duplication(self):
@@ -1059,7 +1070,7 @@ class Audit:
                          ", ".join(f"`{x}`" for x in sorted(missing_paths)[:15]), [d], None, scope)
             # 4. fraîcheur de la fiche vs activité du dépôt décrit
             if hub.repo.is_git and tgt.repo.is_git:
-                last = run(["git", "log", "-1", "--format=%cs", "--", d], hub.root).strip()
+                last = hub._last_change(d)
                 if last:
                     n = tgt._commits_since(last, code_only=True) or 0
                     if n >= 30:
