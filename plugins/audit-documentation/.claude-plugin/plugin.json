@@ -1,0 +1,12 @@
+{
+  "name": "audit-documentation",
+  "description": "Évalue la documentation d'un projet de code et corrige les endroits où elle contredit le code (toute stack).",
+  "version": "1.0.0",
+  "author": {
+    "name": "ksthecrowned",
+    "url": "https://github.com/ksthecrowned"
+  },
+  "repository": "https://github.com/ksthecrowned/ks-skills",
+  "license": "MIT",
+  "keywords": ["documentation", "audit", "drift", "openapi", "swagger", "changelog"]
+}

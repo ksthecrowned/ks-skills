@@ -1,0 +1,17 @@
+{
+  "name": "ks-skills",
+  "description": "Skills Claude Code de ksthecrowned",
+  "owner": {
+    "name": "ksthecrowned",
+    "url": "https://github.com/ksthecrowned"
+  },
+  "plugins": [
+    {
+      "name": "audit-documentation",
+      "source": "./plugins/audit-documentation",
+      "description": "Audit doc ↔ code pour toute stack : script de détection des écarts, barème de gravité, correction guidée.",
+      "version": "1.0.0",
+      "category": "documentation"
+    }
+  ]
+}
