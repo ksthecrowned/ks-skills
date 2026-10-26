@@ -142,9 +142,22 @@ class Repo:
 # --------------------------------------------------------------------------- écosystème (plusieurs dépôts)
 
 
+_REPO_NAMES: dict = {}
+
+
 def repo_name(path: Path) -> str:
     """Nom d'un dépôt : nom du remote git (stable d'un poste à l'autre), sinon nom du dossier."""
-    url = run(["git", "config", "--get", "remote.origin.url"], path).strip()
+    if path in _REPO_NAMES:
+        return _REPO_NAMES[path]
+    _REPO_NAMES[path] = _repo_name(path)
+    return _REPO_NAMES[path]
+
+
+def _repo_name(path: Path) -> str:
+    cfg = path / ".git" / "config"  # lecture directe : évite un appel git (lent sur un dossier monté)
+    txt = read(cfg) if cfg.is_file() else ""
+    m = re.search(r'\[remote "origin"\][^\[]*?url\s*=\s*(\S+)', txt)
+    url = m.group(1) if m else (run(["git", "config", "--get", "remote.origin.url"], path).strip() if not txt else "")
     if url:
         n = re.split(r"[/:]", url.rstrip("/"))[-1]
         n = n[:-4] if n.endswith(".git") else n
